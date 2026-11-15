@@ -1,6 +1,6 @@
 ﻿namespace PaymentGateway.Api.Models.Responses;
 
-public class GetPaymentResponse
+public class PaymentResponse
 {
     public Guid Id { get; set; }
     public PaymentStatus Status { get; set; }
@@ -9,4 +9,9 @@ public class GetPaymentResponse
     public int ExpiryYear { get; set; }
     public string Currency { get; set; }
     public int Amount { get; set; }
+
+    public void SetCardNumberLastFour(long fullCardNumber)
+    {
+        this.CardNumberLastFour = (int)(Math.Abs(fullCardNumber) % 10000);
+    }
 }

@@ -1,3 +1,11 @@
 .idea/
 .vs/
 .DS_Store
+
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# User-specific IDE files
+*.user
+*.DotSettings.user

@@ -1,3 +1,4 @@
+using PaymentGateway.Api.Clients;
 using PaymentGateway.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,7 +10,16 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddSingleton<PaymentsRepository>();
+builder.Services.AddSingleton<IPaymentsRepository, PaymentsRepository>();
+
+builder.Services.AddHttpClient<IBankClient, BankClient>(client =>
+{
+    var baseUrl = builder.Configuration["BankClient:BaseUrl"]
+                  ?? throw new InvalidOperationException("BankClient:BaseUrl is not configured.");
+    client.BaseAddress = new Uri(baseUrl);
+});
+
+builder.Services.AddSingleton<IPaymentService, PaymentService>();
 
 var app = builder.Build();
 
