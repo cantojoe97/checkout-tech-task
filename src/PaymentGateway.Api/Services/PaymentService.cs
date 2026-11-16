@@ -34,7 +34,6 @@ public class PaymentService : IPaymentService
 
         if (!payment.IsValid(DateTime.UtcNow))
         {
-            // Rejected payments never reach the bank and aren't stored, as nothing was processed.
             var rejectedResponse = new PaymentResponse()
             {
                 Status = PaymentStatus.Rejected,
@@ -73,6 +72,5 @@ public class PaymentService : IPaymentService
        _paymentsRepository.Add(paymentResponse);
 
        return paymentResponse;
-
     }
 }
