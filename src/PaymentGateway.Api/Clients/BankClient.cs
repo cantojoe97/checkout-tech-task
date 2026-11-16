@@ -48,9 +48,13 @@ public class BankClient : IBankClient
                 throw new BankInvalidResponseException($"Bank returned {(int)response.StatusCode}.");
             }
 
-            var bankResponse = await response.Content.ReadFromJsonAsync<BankClientResponse>(JsonOptions, cancellationToken);
+            var bankResponse = await response.Content.ReadFromJsonAsync<BankClientResponse>(JsonOptions, cancellationToken)
+                               ?? throw new BankInvalidResponseException("Bank returned an empty response body.");
 
-            return bankResponse ?? throw new BankInvalidResponseException("Bank returned an empty response body.");
+            _logger.LogInformation("Bank responded {StatusCode}, authorized {Authorized}, in {ElapsedMs}ms",
+                (int)response.StatusCode, bankResponse.Authorized, stopwatch.ElapsedMilliseconds);
+
+            return bankResponse;
         }
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {

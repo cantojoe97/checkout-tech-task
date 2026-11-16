@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 using PaymentGateway.Api.Clients;
@@ -34,7 +35,7 @@ public class PaymentsControllerTests
             Currency = "GBP"
         };
 
-        var paymentsRepository = new PaymentsRepository();
+        var paymentsRepository = new PaymentsRepository(NullLogger<PaymentsRepository>.Instance);
         paymentsRepository.Add(payment);
 
         var bankClient = new Mock<IBankClient>();
@@ -69,7 +70,7 @@ public class PaymentsControllerTests
 
         HttpContent content = JsonContent.Create(payment);
 
-        var paymentsRepository = new PaymentsRepository();
+        var paymentsRepository = new PaymentsRepository(NullLogger<PaymentsRepository>.Instance);
         var bankClient = new Mock<IBankClient>();
         bankClient
             .Setup(c => c.ProcessPaymentAsync(It.IsAny<BankClientRequest>(), It.IsAny<CancellationToken>()))
@@ -108,7 +109,7 @@ public class PaymentsControllerTests
             CVV = "12" // invalid: too short
         };
 
-        var paymentsRepository = new PaymentsRepository();
+        var paymentsRepository = new PaymentsRepository(NullLogger<PaymentsRepository>.Instance);
         var bankClient = new Mock<IBankClient>();
         var client = CreateClient(paymentsRepository, bankClient.Object);
 
@@ -141,7 +142,7 @@ public class PaymentsControllerTests
             .Setup(c => c.ProcessPaymentAsync(It.IsAny<BankClientRequest>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(exception);
 
-        var client = CreateClient(new PaymentsRepository(), bankClient.Object);
+        var client = CreateClient(new PaymentsRepository(NullLogger<PaymentsRepository>.Instance), bankClient.Object);
         var payment = new PostPaymentRequest()
         {
             CardNumber = 2222405343248877,

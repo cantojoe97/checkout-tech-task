@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 using PaymentGateway.Api.Clients;
@@ -16,7 +17,7 @@ public class PaymentServiceTests
 
     public PaymentServiceTests()
     {
-        _sut = new PaymentService(_paymentsRepository.Object, _bankClient.Object);
+        _sut = new PaymentService(_paymentsRepository.Object, _bankClient.Object, NullLogger<PaymentService>.Instance);
     }
 
     [Fact]
