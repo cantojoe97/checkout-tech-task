@@ -29,6 +29,12 @@ public class PostPaymentRequest
             return false;
         }
 
+        // Amount is in minor units (1050 = £10.50), so it must be at least 1.
+        if (Amount <= 0)
+        {
+            return false;
+        }
+
         if (ExpiryMonth is < 1 or > 12)
         {
             return false;

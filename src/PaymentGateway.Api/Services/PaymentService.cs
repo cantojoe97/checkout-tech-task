@@ -2,6 +2,7 @@ using PaymentGateway.Api.Clients;
 using PaymentGateway.Api.Models;
 using PaymentGateway.Api.Models.Requests;
 using PaymentGateway.Api.Models.Responses;
+using PaymentGateway.Api.Repositories;
 
 namespace PaymentGateway.Api.Services;
 
@@ -21,7 +22,7 @@ public class PaymentService : IPaymentService
         _logger = logger;
     }
 
-    public PaymentResponse GetPayment(Guid paymentId)
+    public PaymentResponse? GetPayment(Guid paymentId)
     {
         if (paymentId == Guid.Empty)
         {
@@ -49,22 +50,13 @@ public class PaymentService : IPaymentService
 
         if (!payment.IsValid(DateTime.UtcNow))
         {
-            var rejectedResponse = new PaymentResponse()
-            {
-                Status = PaymentStatus.Rejected,
-                Amount = payment.Amount,
-                Currency = payment.Currency,
-                ExpiryMonth = payment.ExpiryMonth,
-                ExpiryYear = payment.ExpiryYear
-            };
-            rejectedResponse.SetCardNumberLastFour(payment.CardNumber);
-
             // Rejected payments are never stored or given an id, so there is no PaymentId to log.
+            var rejected = CreateResponse(payment, Guid.Empty, PaymentStatus.Rejected);
             _logger.LogInformation(
                 "Payment rejected by validation for {Amount} {Currency}, card ending {CardNumberLastFour}",
-                rejectedResponse.Amount, rejectedResponse.Currency, rejectedResponse.CardNumberLastFour);
+                rejected.Amount, rejected.Currency, rejected.CardNumberLastFour);
 
-            return rejectedResponse;
+            return rejected;
         }
 
         var paymentId = Guid.NewGuid();
@@ -73,45 +65,49 @@ public class PaymentService : IPaymentService
         // carries the PaymentId as a structured field.
         using var _ = _logger.BeginScope("PaymentId:{PaymentId}", paymentId);
 
-        var paymentResponse = new PaymentResponse()
-        {
-            Id = paymentId,
-            Amount = payment.Amount,
-            Currency = payment.Currency,
-            ExpiryMonth = payment.ExpiryMonth,
-            ExpiryYear = payment.ExpiryYear
-        };
-        paymentResponse.SetCardNumberLastFour(payment.CardNumber);
-
         _logger.LogInformation(
             "Processing payment {PaymentId} for {Amount} {Currency}, card ending {CardNumberLastFour}",
-            paymentId, paymentResponse.Amount, paymentResponse.Currency, paymentResponse.CardNumberLastFour);
-
-        var bankClientRequest = new BankClientRequest()
-        {
-            CardNumber = payment.CardNumber.ToString(),
-            Amount = payment.Amount,
-            Currency = payment.Currency,
-            CVV = payment.CVV,
-            ExpiryDate = $"{payment.ExpiryMonth:D2}/{payment.ExpiryYear}",
-        };
+            paymentId, payment.Amount, payment.Currency, LastFour(payment.CardNumber));
 
         // No caller CancellationToken on purpose: once the request is sent the bank may charge the card,
         // so we always wait for its answer and record it. Bank failures throw and are turned into
         // 502/503/504 responses by GlobalExceptionHandler.
-        var bankClientResponse = await _bankClient.ProcessPaymentAsync(bankClientRequest);
+        var bankResponse = await _bankClient.ProcessPaymentAsync(ToBankRequest(payment));
 
-        paymentResponse.Status = bankClientResponse.Authorized ? PaymentStatus.Authorized : PaymentStatus.Declined;
-
-        if (bankClientResponse.Authorized && string.IsNullOrEmpty(bankClientResponse.AuthorizationCode))
+        if (bankResponse.Authorized && string.IsNullOrEmpty(bankResponse.AuthorizationCode))
         {
             _logger.LogWarning("Payment {PaymentId} authorized by the bank without an authorization code", paymentId);
         }
 
-        _paymentsRepository.Add(paymentResponse);
+        var response = CreateResponse(payment, paymentId,
+            bankResponse.Authorized ? PaymentStatus.Authorized : PaymentStatus.Declined);
 
-        _logger.LogInformation("Payment {PaymentId} {PaymentStatus}", paymentId, paymentResponse.Status);
+        _paymentsRepository.Add(response);
 
-        return paymentResponse;
+        _logger.LogInformation("Payment {PaymentId} {PaymentStatus}", paymentId, response.Status);
+
+        return response;
     }
+
+    private static BankClientRequest ToBankRequest(PostPaymentRequest payment) => new()
+    {
+        CardNumber = payment.CardNumber.ToString(),
+        ExpiryDate = $"{payment.ExpiryMonth:D2}/{payment.ExpiryYear}",
+        Currency = payment.Currency,
+        Amount = payment.Amount,
+        CVV = payment.CVV
+    };
+
+    private static PaymentResponse CreateResponse(PostPaymentRequest payment, Guid id, PaymentStatus status) => new()
+    {
+        Id = id,
+        Status = status,
+        CardNumberLastFour = LastFour(payment.CardNumber),
+        ExpiryMonth = payment.ExpiryMonth,
+        ExpiryYear = payment.ExpiryYear,
+        Currency = payment.Currency,
+        Amount = payment.Amount
+    };
+
+    private static int LastFour(long cardNumber) => (int)(Math.Abs(cardNumber) % 10000);
 }

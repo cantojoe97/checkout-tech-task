@@ -1,7 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using PaymentGateway.Api.Models.Responses;
 
-namespace PaymentGateway.Api.Services;
+namespace PaymentGateway.Api.Repositories;
 
 public class PaymentsRepository : IPaymentsRepository
 {

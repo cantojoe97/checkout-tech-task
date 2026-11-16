@@ -1,5 +1,6 @@
 using PaymentGateway.Api.Clients;
 using PaymentGateway.Api.ExceptionHandling;
+using PaymentGateway.Api.Repositories;
 using PaymentGateway.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
