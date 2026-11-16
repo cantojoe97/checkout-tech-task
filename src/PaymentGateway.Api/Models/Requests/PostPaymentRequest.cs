@@ -3,18 +3,17 @@ namespace PaymentGateway.Api.Models.Requests;
 public class PostPaymentRequest
 {
     private static readonly HashSet<string> SupportedCurrencies = new() { "GBP", "USD", "EUR" };
-
-    public long CardNumber { get; set; }
-    public int  ExpiryMonth { get; set; }
-    public int ExpiryYear { get; set; }
-    public string Currency { get; set; }
-    public int Amount { get; set; }
-    public string CVV { get; set; }
     
+    public string CardNumber { get; set; } = string.Empty;
+    public int ExpiryMonth { get; set; }
+    public int ExpiryYear { get; set; }
+    public string Currency { get; set; } = string.Empty;
+    public int Amount { get; set; }
+    public string CVV { get; set; } = string.Empty;
+
     public bool IsValid(DateTime now)
     {
-        var cardNumberLength = CardNumber.ToString().Length;
-        if (CardNumber <= 0 || cardNumberLength < 14 || cardNumberLength > 19)
+        if (CardNumber is null || CardNumber.Length is < 14 or > 19 || !CardNumber.All(char.IsAsciiDigit))
         {
             return false;
         }
@@ -29,7 +28,6 @@ public class PostPaymentRequest
             return false;
         }
 
-        // Amount is in minor units (1050 = £10.50), so it must be at least 1.
         if (Amount <= 0)
         {
             return false;
@@ -40,6 +38,7 @@ public class PostPaymentRequest
             return false;
         }
 
+        // A card is valid until the end of its expiry month, so the current month is accepted.
         if (ExpiryYear < now.Year || (ExpiryYear == now.Year && ExpiryMonth < now.Month))
         {
             return false;

@@ -6,8 +6,8 @@ using PaymentGateway.Api.Exceptions;
 namespace PaymentGateway.Api.ExceptionHandling;
 
 /// <summary>
-/// The one place that decides what callers see when something throws. Responses are ProblemDetails
-/// with a safe, generic message; the full exception only goes to the logs.
+/// Decides what callers see when something throws: a ProblemDetails body with a generic message.
+/// The exception itself only goes to the logs.
 /// </summary>
 public class GlobalExceptionHandler : IExceptionHandler
 {
@@ -22,24 +22,21 @@ public class GlobalExceptionHandler : IExceptionHandler
 
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        var (statusCode, title) = exception switch
-        {
-            BankUnavailableException => (StatusCodes.Status503ServiceUnavailable, "The acquiring bank is unavailable. Please try again later."),
-            BankTimeoutException => (StatusCodes.Status504GatewayTimeout, "The acquiring bank did not respond in time. Please try again later."),
-            BankInvalidResponseException => (StatusCodes.Status502BadGateway, "The acquiring bank returned an unexpected response."),
-            _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.")
-        };
+        int statusCode;
+        string title;
 
-        if (statusCode == StatusCodes.Status500InternalServerError)
+        if (exception is BankUnavailableException)
         {
-            _logger.LogError(exception, "Unhandled exception processing {Method} {Path}",
-                httpContext.Request.Method, httpContext.Request.Path);
+            // BankClient has already logged the detail.
+            _logger.LogWarning("Bank unavailable processing {Method} {Path}", httpContext.Request.Method, httpContext.Request.Path);
+            statusCode = StatusCodes.Status503ServiceUnavailable;
+            title = "The acquiring bank is unavailable. Please try again later.";
         }
         else
         {
-            // BankClient has already logged the detail; this ties the failure to the request.
-            _logger.LogWarning("Bank failure ({ExceptionType}) processing {Method} {Path}",
-                exception.GetType().Name, httpContext.Request.Method, httpContext.Request.Path);
+            _logger.LogError(exception, "Unhandled exception processing {Method} {Path}", httpContext.Request.Method, httpContext.Request.Path);
+            statusCode = StatusCodes.Status500InternalServerError;
+            title = "An unexpected error occurred.";
         }
 
         httpContext.Response.StatusCode = statusCode;
@@ -48,11 +45,7 @@ public class GlobalExceptionHandler : IExceptionHandler
         {
             HttpContext = httpContext,
             Exception = exception,
-            ProblemDetails = new ProblemDetails
-            {
-                Status = statusCode,
-                Title = title
-            }
+            ProblemDetails = new ProblemDetails { Status = statusCode, Title = title }
         });
     }
 }

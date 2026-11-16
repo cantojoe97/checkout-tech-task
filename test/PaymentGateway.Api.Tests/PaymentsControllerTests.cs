@@ -11,7 +11,7 @@ using Moq;
 
 using PaymentGateway.Api.Controllers;
 using PaymentGateway.Api.Exceptions;
-using PaymentGateway.Api.Models;
+using PaymentGateway.Api.Enums;
 using PaymentGateway.Api.Models.Requests;
 using PaymentGateway.Api.Models.Responses;
 using PaymentGateway.Api.Services;
@@ -45,14 +45,20 @@ public class PaymentsControllerTests : IDisposable
     [Fact]
     public async Task Get_WhenPaymentExists_Returns200WithThePayment()
     {
-        var payment = new PaymentResponse { Id = Guid.NewGuid(), Status = PaymentStatus.Authorized, Currency = "GBP" };
+        var payment = new PaymentResponse
+        {
+            Id = Guid.NewGuid(), Status = PaymentStatus.Authorized, CardNumberLastFour = "0123", Currency = "GBP"
+        };
         _service.Setup(s => s.GetPayment(payment.Id)).Returns(payment);
 
         var response = await _client.GetAsync($"/api/Payments/{payment.Id}");
-        var body = await response.Content.ReadFromJsonAsync<PaymentResponse>();
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(payment.Id, body!.Id);
+        Assert.Equal(payment.Id, body.RootElement.GetProperty("id").GetGuid());
+        // The contract merchants see: the status by name and the last four as text, leading zero kept.
+        Assert.Equal("Authorized", body.RootElement.GetProperty("status").GetString());
+        Assert.Equal("0123", body.RootElement.GetProperty("cardNumberLastFour").GetString());
     }
 
     [Fact]
@@ -84,8 +90,8 @@ public class PaymentsControllerTests : IDisposable
     [Fact]
     public async Task Post_WhenBodyCannotBeRead_Returns400WithoutCallingTheService()
     {
-        // A card number sent as a string can't bind to a long, so [ApiController] answers before our code runs.
-        var content = new StringContent("""{ "cardNumber": "not a number" }""", Encoding.UTF8, "application/json");
+        // An amount sent as text can't bind to an int, so [ApiController] answers before our code runs.
+        var content = new StringContent("""{ "cardNumber": "2222405343248877", "amount": "ten pounds" }""", Encoding.UTF8, "application/json");
 
         var response = await _client.PostAsync("/api/Payments", content);
 
@@ -96,8 +102,6 @@ public class PaymentsControllerTests : IDisposable
 
     [Theory]
     [InlineData(typeof(BankUnavailableException), HttpStatusCode.ServiceUnavailable)]
-    [InlineData(typeof(BankTimeoutException), HttpStatusCode.GatewayTimeout)]
-    [InlineData(typeof(BankInvalidResponseException), HttpStatusCode.BadGateway)]
     [InlineData(typeof(InvalidOperationException), HttpStatusCode.InternalServerError)]
     public async Task Post_WhenProcessingThrows_ReturnsProblemDetailsWithoutInternals(Type exceptionType, HttpStatusCode expected)
     {
@@ -121,7 +125,7 @@ public class PaymentsControllerTests : IDisposable
     // model binding lets the request through.
     private static PostPaymentRequest AnyRequest() => new()
     {
-        CardNumber = 2222405343248877,
+        CardNumber = "2222405343248877",
         ExpiryMonth = 4,
         ExpiryYear = 2030,
         Currency = "GBP",

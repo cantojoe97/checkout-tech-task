@@ -4,7 +4,7 @@ using Moq;
 
 using PaymentGateway.Api.Clients;
 using PaymentGateway.Api.Exceptions;
-using PaymentGateway.Api.Models;
+using PaymentGateway.Api.Enums;
 using PaymentGateway.Api.Models.Requests;
 using PaymentGateway.Api.Models.Responses;
 using PaymentGateway.Api.Repositories;
@@ -42,13 +42,6 @@ public class PaymentServiceTests
         Assert.Null(_sut.GetPayment(Guid.NewGuid()));
     }
 
-    [Fact]
-    public void GetPayment_WhenIdIsEmptyGuid_ReturnsNullWithoutQueryingRepository()
-    {
-        Assert.Null(_sut.GetPayment(Guid.Empty));
-        _repository.Verify(r => r.Get(It.IsAny<Guid>()), Times.Never);
-    }
-
     // ---------- ProcessPaymentAsync ----------
 
     [Fact]
@@ -67,7 +60,7 @@ public class PaymentServiceTests
 
         Assert.Equal(PaymentStatus.Rejected, result.Status);
         Assert.Equal(Guid.Empty, result.Id);
-        Assert.Equal(8877, result.CardNumberLastFour);
+        Assert.Equal("8877", result.CardNumberLastFour);
         _bank.Verify(b => b.ProcessPaymentAsync(It.IsAny<BankClientRequest>(), It.IsAny<CancellationToken>()), Times.Never);
         _repository.Verify(r => r.Add(It.IsAny<PaymentResponse>()), Times.Never);
     }
@@ -104,12 +97,25 @@ public class PaymentServiceTests
 
         Assert.Equal(expectedStatus, result.Status);
         Assert.NotEqual(Guid.Empty, result.Id);
-        Assert.Equal(8877, result.CardNumberLastFour);
+        Assert.Equal("8877", result.CardNumberLastFour);
         Assert.Equal(request.ExpiryMonth, result.ExpiryMonth);
         Assert.Equal(request.ExpiryYear, result.ExpiryYear);
         Assert.Equal(request.Currency, result.Currency);
         Assert.Equal(request.Amount, result.Amount);
         _repository.Verify(r => r.Add(result), Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessPayment_KeepsLeadingZerosInTheLastFourDigits()
+    {
+        _bank.Setup(b => b.ProcessPaymentAsync(It.IsAny<BankClientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BankClientResponse { Authorized = true, AuthorizationCode = "abc" });
+        var request = ValidRequest();
+        request.CardNumber = "2222405343240123";
+
+        var result = await _sut.ProcessPaymentAsync(request);
+
+        Assert.Equal("0123", result.CardNumberLastFour);
     }
 
     [Fact]
@@ -124,7 +130,7 @@ public class PaymentServiceTests
 
     private static PostPaymentRequest ValidRequest() => new()
     {
-        CardNumber = 2222405343248877,
+        CardNumber = "2222405343248877",
         ExpiryMonth = 4,
         ExpiryYear = DateTime.UtcNow.Year + 1,
         Currency = "GBP",

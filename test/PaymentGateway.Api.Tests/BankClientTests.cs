@@ -59,22 +59,22 @@ public class BankClientTests
     }
 
     [Fact]
-    public async Task ProcessPayment_WhenBankReturns4xx_ThrowsBankInvalidResponse()
+    public async Task ProcessPayment_WhenBankReturns4xx_ThrowsBankUnavailable()
     {
         var client = CreateClient(Returning(HttpStatusCode.BadRequest, """{ "error_message": "Not all required properties were sent in the request" }"""));
 
-        await Assert.ThrowsAsync<BankInvalidResponseException>(() => client.ProcessPaymentAsync(ValidRequest()));
+        await Assert.ThrowsAsync<BankUnavailableException>(() => client.ProcessPaymentAsync(ValidRequest()));
     }
 
     [Theory]
     [InlineData("not json")]
     [InlineData("null")]
     [InlineData("")]
-    public async Task ProcessPayment_WhenBodyIsUnreadable_ThrowsBankInvalidResponse(string body)
+    public async Task ProcessPayment_WhenBodyIsUnreadable_ThrowsBankUnavailable(string body)
     {
         var client = CreateClient(Returning(HttpStatusCode.OK, body));
 
-        await Assert.ThrowsAsync<BankInvalidResponseException>(() => client.ProcessPaymentAsync(ValidRequest()));
+        await Assert.ThrowsAsync<BankUnavailableException>(() => client.ProcessPaymentAsync(ValidRequest()));
     }
 
     [Fact]
@@ -87,11 +87,11 @@ public class BankClientTests
     }
 
     [Fact]
-    public async Task ProcessPayment_WhenBankIsTooSlow_ThrowsBankTimeout()
+    public async Task ProcessPayment_WhenBankIsTooSlow_ThrowsBankUnavailable()
     {
         var client = CreateClient(Hanging(), timeout: TimeSpan.FromMilliseconds(50));
 
-        await Assert.ThrowsAsync<BankTimeoutException>(() => client.ProcessPaymentAsync(ValidRequest()));
+        await Assert.ThrowsAsync<BankUnavailableException>(() => client.ProcessPaymentAsync(ValidRequest()));
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class BankClientTests
 
         var ex = await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => CreateClient(Hanging()).ProcessPaymentAsync(ValidRequest(), cts.Token));
-        Assert.IsNotType<BankTimeoutException>(ex);
+        Assert.IsNotType<BankUnavailableException>(ex);
     }
 
     // ---------- Helpers ----------

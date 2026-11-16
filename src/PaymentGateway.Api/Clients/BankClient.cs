@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Net;
 using System.Text.Json;
 
 using PaymentGateway.Api.Exceptions;
@@ -33,23 +32,16 @@ public class BankClient : IBankClient
         {
             using var response = await _httpClient.PostAsJsonAsync("payments", request, JsonOptions, cancellationToken);
 
-            if ((int)response.StatusCode >= 500)
+            if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Bank returned {StatusCode} after {ElapsedMs}ms",
+                var level = (int)response.StatusCode >= 500 ? LogLevel.Warning : LogLevel.Error;
+                _logger.Log(level, "Bank returned {StatusCode} after {ElapsedMs}ms",
                     (int)response.StatusCode, stopwatch.ElapsedMilliseconds);
                 throw new BankUnavailableException($"Bank returned {(int)response.StatusCode}.");
             }
 
-            if (!response.IsSuccessStatusCode)
-            {
-                // We validate before calling the bank, so a 4xx means our request is wrong: a bug on our side.
-                _logger.LogError("Bank rejected the request with {StatusCode} after {ElapsedMs}ms",
-                    (int)response.StatusCode, stopwatch.ElapsedMilliseconds);
-                throw new BankInvalidResponseException($"Bank returned {(int)response.StatusCode}.");
-            }
-
             var bankResponse = await response.Content.ReadFromJsonAsync<BankClientResponse>(JsonOptions, cancellationToken)
-                               ?? throw new BankInvalidResponseException("Bank returned an empty response body.");
+                               ?? throw new BankUnavailableException("Bank returned an empty response body.");
 
             _logger.LogInformation("Bank responded {StatusCode}, authorized {Authorized}, in {ElapsedMs}ms",
                 (int)response.StatusCode, bankResponse.Authorized, stopwatch.ElapsedMilliseconds);
@@ -58,10 +50,8 @@ public class BankClient : IBankClient
         }
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
-            // HttpClient signals its own timeout as a TaskCanceledException. If the caller's token
-            // was cancelled instead, the filter above lets the cancellation propagate unchanged.
             _logger.LogWarning("Bank call timed out after {ElapsedMs}ms", stopwatch.ElapsedMilliseconds);
-            throw new BankTimeoutException("Bank did not respond in time.", ex);
+            throw new BankUnavailableException("Bank did not respond in time.", ex);
         }
         catch (HttpRequestException ex)
         {
@@ -71,7 +61,7 @@ public class BankClient : IBankClient
         catch (JsonException ex)
         {
             _logger.LogError(ex, "Bank returned a response body that could not be read");
-            throw new BankInvalidResponseException("Bank returned an unreadable response body.", ex);
+            throw new BankUnavailableException("Bank returned an unreadable response body.", ex);
         }
     }
 }

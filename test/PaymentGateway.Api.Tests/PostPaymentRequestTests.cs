@@ -11,8 +11,9 @@ public class PostPaymentRequestTests
     public static TheoryData<string, Action<PostPaymentRequest>> ValidChanges => new()
     {
         { "unchanged", _ => { } },
-        { "card number 14 digits (minimum)", r => r.CardNumber = 12345678901234 },
-        { "card number 19 digits (maximum)", r => r.CardNumber = 1234567890123456789 },
+        { "card number 14 digits (minimum)", r => r.CardNumber = "12345678901234" },
+        { "card number 19 digits (maximum)", r => r.CardNumber = "9234567890123456789" }, // larger than a long holds
+        { "card number with leading zero", r => r.CardNumber = "0222405343248877" },
         { "CVV 4 digits", r => r.CVV = "1234" },
         { "CVV with leading zero", r => r.CVV = "012" },
         { "currency USD", r => r.Currency = "USD" },
@@ -26,9 +27,13 @@ public class PostPaymentRequestTests
 
     public static TheoryData<string, Action<PostPaymentRequest>> InvalidChanges => new()
     {
-        { "card number 0", r => r.CardNumber = 0 },
-        { "card number 13 digits", r => r.CardNumber = 1234567890123 },
-        { "card number negative", r => r.CardNumber = -12345678901234 },
+        { "card number null", r => r.CardNumber = null! },
+        { "card number empty", r => r.CardNumber = "" },
+        { "card number 13 digits", r => r.CardNumber = "1234567890123" },
+        { "card number 20 digits", r => r.CardNumber = "12345678901234567890" },
+        { "card number with a letter", r => r.CardNumber = "222240534324887a" },
+        { "card number with spaces", r => r.CardNumber = "2222 4053 4324 8877" },
+        { "card number negative", r => r.CardNumber = "-2222405343248877" },
         { "CVV null", r => r.CVV = null! },
         { "CVV empty", r => r.CVV = "" },
         { "CVV 2 digits", r => r.CVV = "12" },
@@ -72,7 +77,7 @@ public class PostPaymentRequestTests
 
     private static PostPaymentRequest ValidRequest() => new()
     {
-        CardNumber = 2222405343248877,
+        CardNumber = "2222405343248877",
         ExpiryMonth = 4,
         ExpiryYear = 2027,
         Currency = "GBP",

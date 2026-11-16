@@ -12,7 +12,7 @@ POST {{baseUrl}}/api/payments
 Content-Type: application/json
 
 {
-  "cardNumber": 2222405343248871,
+  "cardNumber": "2222405343248871",
   "expiryMonth": 4,
   "expiryYear": {{expiryYear}},
   "currency": "GBP",
@@ -33,7 +33,7 @@ POST {{baseUrl}}/api/payments
 Content-Type: application/json
 
 {
-  "cardNumber": 2222405343248872,
+  "cardNumber": "2222405343248872",
   "expiryMonth": 4,
   "expiryYear": {{expiryYear}},
   "currency": "USD",
@@ -46,7 +46,7 @@ POST {{baseUrl}}/api/payments
 Content-Type: application/json
 
 {
-  "cardNumber": 2222405343248870,
+  "cardNumber": "2222405343248870",
   "expiryMonth": 4,
   "expiryYear": {{expiryYear}},
   "currency": "EUR",
