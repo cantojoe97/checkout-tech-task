@@ -37,7 +37,6 @@ public class PaymentService : IPaymentService
 
         if (!payment.IsValid(DateTime.UtcNow))
         {
-            // Rejected payments are never stored or given an id, so there is no PaymentId to log.
             var rejected = CreateResponse(payment, Guid.Empty, PaymentStatus.Rejected);
             _logger.LogInformation(
                 "Payment rejected by validation for {Amount} {Currency}, card ending {CardNumberLastFour}",
@@ -55,7 +54,7 @@ public class PaymentService : IPaymentService
         // No caller CancellationToken on purpose: once the request is sent the bank may charge the card,
         // so we always wait for its answer and record it. Bank failures throw BankUnavailableException,
         // which GlobalExceptionHandler turns into a 503.
-        var bankResponse = await _bankClient.ProcessPaymentAsync(ToBankRequest(payment));
+        var bankResponse = await _bankClient.ProcessPaymentAsync(BankClientRequest.ToBankRequest(payment));
 
         if (bankResponse.Authorized && string.IsNullOrEmpty(bankResponse.AuthorizationCode))
         {
@@ -71,16 +70,7 @@ public class PaymentService : IPaymentService
 
         return response;
     }
-
-    private static BankClientRequest ToBankRequest(PostPaymentRequest payment) => new()
-    {
-        CardNumber = payment.CardNumber,
-        ExpiryDate = $"{payment.ExpiryMonth:D2}/{payment.ExpiryYear}",
-        Currency = payment.Currency,
-        Amount = payment.Amount,
-        CVV = payment.CVV
-    };
-
+    
     private static PaymentResponse CreateResponse(PostPaymentRequest payment, Guid id, PaymentStatus status) => new()
     {
         Id = id,
